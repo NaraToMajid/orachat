@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ORACHAT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="auth-screen">
+        <div class="auth-card">
+            <h2 id="auth-title" style="margin:0 0 15px 0; text-align:center;">MASUK</h2>
+            <input type="text" id="username-field" placeholder="Username">
+            <input type="password" id="password-field" placeholder="Password">
+            <div id="reg-extra" class="hidden"><input type="password" id="confirm-field" placeholder="Konfirmasi Password"></div>
+            <button onclick="handleAuth()" style="width:100%; margin-top:10px;">MULAI CHAT</button>
+            <p id="toggle-text" onclick="toggleAuth()" style="cursor:pointer; font-size:12px; font-weight:700; text-align:center; margin-top:15px;">BELUM PUNYA AKUN? DAFTAR</p>
+        </div>
+    </div>
+
+    <div id="app-screen" class="hidden">
+        <div id="sidebar">
+            <div class="sb-header">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <img id="my-avatar" class="avatar" onclick="openMyProfile()">
+                    <div>
+                        <div id="my-name" style="font-weight:900;">-</div>
+                        <small id="my-id">ID: -</small>
+                    </div>
+                </div>
+                <button onclick="location.reload()" style="font-size:10px; width:100%;">LOGOUT</button>
+            </div>
+            <div style="padding:15px; border-bottom:4px solid #000;">
+                <input type="text" id="search-id" placeholder="Cari ID Teman...">
+                <button onclick="addContactManual()" style="width:100%; margin-top:5px;">TAMBAH TEMAN</button>
+            </div>
+            <div id="contact-list" style="flex:1; overflow-y:auto;"></div>
+        </div>
+
+        <div id="chat-area">
+            <div id="chat-header" style="display:flex; align-items:center;">
+                <button id="back-btn" onclick="closeChat()">←</button>
+                <img id="target-avatar" class="avatar" style="width:40px; height:40px; margin-right:10px;" onclick="openTargetProfile()">
+                <div style="flex:1; cursor:pointer;" onclick="openTargetProfile()">
+                    <div id="target-name" style="font-weight:900; line-height:1.2;">PILIH CHAT</div>
+                    <div id="target-status" style="font-size:11px; color:var(--green); font-weight:700; height:15px;"></div>
+                </div>
+                <button id="info-btn" class="hidden" onclick="openTargetProfile()" style="padding:5px 10px; font-size:10px;">INFO</button>
+            </div>
+            <div id="messages-container"></div>
+            <div id="chat-footer" class="hidden" style="padding:15px; background:white; border-top:5px solid #000;">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <label style="cursor:pointer; font-size:20px;">
+                        📷 <input type="file" class="hidden" accept="image/*" onchange="uploadImage(this)">
+                    </label>
+                    <input type="text" id="msg-input" placeholder="Tulis pesan..." autocomplete="off">
+                    <button onclick="sendMsg()" style="width:80px;">KIRIM</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="overlay hidden">
+        <div class="auth-card" style="text-align:center;">
+            <h3>EDIT PROFIL</h3>
+            <img id="edit-preview" class="avatar" style="width:100px; height:100px; margin-bottom:10px;">
+            <label style="display:block; font-size:12px; color:blue; cursor:pointer; font-weight:700; margin-bottom:10px;">
+                GANTI FOTO <input type="file" class="hidden" accept="image/*" onchange="previewProfile(this)">
+            </label>
+            <input type="text" id="edit-bio" placeholder="Bio Singkat">
+            <button onclick="saveProfile()" style="width:100%; margin-top:10px;">SIMPAN</button>
+            <button onclick="closeModal('profile-modal')" style="width:100%; margin-top:5px; background:gray;">BATAL</button>
+        </div>
+    </div>
+
+    <div id="view-profile-modal" class="overlay hidden">
+        <div class="auth-card" style="text-align:center;">
+            <img id="v-avatar" style="width:120px; height:120px; border:5px solid #000; border-radius:50%; object-fit:cover; margin-bottom:15px;">
+            <h2 id="v-name" style="margin:0; text-transform:uppercase;">-</h2>
+            <p id="v-bio" style="font-weight:700; color:#555;">-</p>
+            <button onclick="closeModal('view-profile-modal')" style="width:100%; margin-top:10px;">TUTUP</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="script.js"></script>
+</body>
+</html>
