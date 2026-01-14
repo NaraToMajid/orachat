@@ -1,0 +1,245 @@
+:root {
+    --black: #000;
+    --white: #fff;
+    --gray: #f4f4f4;
+    --green: #2ecc71;
+    --blue: #3498db;
+    --red: #e74c3c;
+}
+
+* {
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    margin: 0;
+    background: var(--white);
+    color: var(--black);
+    overflow: hidden;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* AUTH SCREEN DI TENGAH */
+#auth-screen {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gray);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+}
+
+.auth-card {
+    background: white;
+    border: 5px solid var(--black);
+    padding: 30px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 10px 10px 0 var(--black);
+}
+
+/* LAYOUT SISTEM */
+#app-screen {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+}
+
+#sidebar {
+    width: 350px;
+    border-right: 5px solid var(--black);
+    display: flex;
+    flex-direction: column;
+    background: white;
+}
+
+#chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #e5ddd5;
+    transition: transform 0.3s ease;
+}
+
+/* MODE PORTRAIT */
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+    }
+    
+    #chat-area {
+        position: absolute;
+        inset: 0;
+        transform: translateX(100%);
+        z-index: 10;
+    }
+    
+    #chat-area.active {
+        transform: translateX(0);
+    }
+    
+    #back-btn {
+        display: block !important;
+    }
+    
+    /* Tombol panah khusus untuk keluar chat */
+    .back-arrow {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        font-size: 24px;
+        font-weight: 900;
+        cursor: pointer;
+        border: 3px solid var(--black);
+        background: white;
+        border-radius: 50%;
+        margin-right: 10px;
+        transition: all 0.2s ease;
+    }
+    
+    .back-arrow:hover {
+        background: var(--black);
+        color: white;
+    }
+}
+
+.sb-header, #chat-header {
+    padding: 12px 15px;
+    border-bottom: 5px solid var(--black);
+    background: white;
+}
+
+.avatar {
+    width: 45px;
+    height: 45px;
+    border: 3px solid #000;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #eee;
+    cursor: pointer;
+}
+
+#back-btn {
+    display: none;
+    font-size: 28px;
+    font-weight: 900;
+    cursor: pointer;
+    border: none;
+    background: none;
+    margin-right: 10px;
+    padding: 0;
+    line-height: 1;
+}
+
+.contact-item {
+    padding: 15px;
+    border-bottom: 2px solid #eee;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #000;
+}
+
+.online {
+    background: var(--green);
+}
+
+.offline {
+    background: #bbb;
+}
+
+#messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bubble {
+    max-width: 75%;
+    padding: 10px;
+    border: 3px solid var(--black);
+    font-weight: 700;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.sent {
+    align-self: flex-end;
+    background: #dcf8c6;
+    border-radius: 15px 15px 0 15px;
+}
+
+.received {
+    align-self: flex-start;
+    background: white;
+    border-radius: 15px 15px 15px 0;
+}
+
+.msg-img {
+    max-width: 100%;
+    border-radius: 10px;
+    border: 2px solid #000;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.msg-info {
+    font-size: 10px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    margin-top: 5px;
+    opacity: 0.7;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    border: 3px solid var(--black);
+    font-weight: 700;
+    margin: 5px 0;
+    outline: none;
+}
+
+button {
+    background: var(--black);
+    color: white;
+    border: none;
+    font-weight: 900;
+    cursor: pointer;
+    padding: 10px;
+    text-transform: uppercase;
+}
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
