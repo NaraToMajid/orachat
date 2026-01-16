@@ -5,6 +5,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let myData = null, activeChat = null, isReg = false;
 let onlineUsers = {}, typingTimeout, tempAvatarBase64 = null;
 let pressTimer;
+let unreadCounts = {};
 
 // Toggle login/register
 window.toggleAuth = function() { 
@@ -75,16 +76,18 @@ async function loadContacts() {
     
     profiles?.forEach(p => {
         const isOnline = onlineUsers[p.unique_id];
+        const unread = unreadCounts[p.unique_id] || 0;
         const div = document.createElement('div');
         div.className = `contact-item`;
         div.innerHTML = `
             <img src="${p.avatar_url || 'https://ui-avatars.com/api/?name='+p.username}" class="avatar">
-            <div style="flex:1">
+            <div style="flex:1; position:relative;">
                 <div style="font-weight:900">${p.username.toUpperCase()}</div>
                 <small style="display:flex; align-items:center; gap:5px;">
                     <span class="status-dot ${isOnline ? 'online' : 'offline'}"></span> 
                     ${isOnline ? 'Online' : 'Offline'}
                 </small>
+                ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
             </div>`;
         div.onclick = () => openChat(p);
         container.appendChild(div);
@@ -107,14 +110,19 @@ window.openChat = function(profile) {
     
     loadMessages(); 
     markAsRead();
+    
+    // Reset unread count
+    if (unreadCounts[profile.unique_id]) {
+        delete unreadCounts[profile.unique_id];
+        loadContacts();
+    }
 }
 
-// Close chat (added back arrow functionality)
+// Close chat
 window.closeChat = function() { 
     document.getElementById('chat-area').classList.remove('active'); 
     activeChat = null; 
     
-    // Reset chat UI
     document.getElementById('target-name').innerText = "PILIH CHAT";
     document.getElementById('target-status').innerText = "";
     document.getElementById('chat-footer').classList.add('hidden');
@@ -149,13 +157,38 @@ function renderMsg(m) {
     div.className = `bubble ${isMe ? 'sent' : 'received'}`;
     const time = new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
+    let contentHtml = '';
+    if (m.image_url) {
+        const isVideo = m.image_url.includes('.mp4') || m.image_url.includes('.webm') || m.file_type?.includes('video');
+        if (isVideo) {
+            contentHtml = `<video src="${m.image_url}" controls class="msg-media"></video>`;
+        } else if (m.file_type?.includes('audio')) {
+            contentHtml = `<audio src="${m.image_url}" controls class="msg-media"></audio>`;
+        } else {
+            contentHtml = `<img src="${m.image_url}" class="msg-img">`;
+        }
+    }
+    
+    if (m.content) {
+        // Check if content is a URL
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        let processedContent = m.content.replace(urlRegex, url => {
+            return `<a href="${url}" target="_blank" class="message-link">${url}</a>`;
+        });
+        contentHtml += `<span>${processedContent}</span>`;
+    }
+    
     div.innerHTML = `
-        ${m.image_url ? `<img src="${m.image_url}" class="msg-img">` : ''}
-        <span>${m.content || ''}</span>
-        <div class="msg-info">${time} ${isMe ? (m.is_read ? '✓✓' : '✓') : ''}</div>
+        ${contentHtml}
+        <div class="msg-info">
+            ${time} 
+            ${isMe ? (m.is_read ? '✓✓' : '✓') : ''}
+            ${m.likes > 0 ? `<span class="like-count">❤️ ${m.likes}</span>` : ''}
+        </div>
+        ${!isMe ? '<button class="like-btn" onclick="likeMessage(\'' + m.id + '\')">❤️</button>' : ''}
     `;
 
-    // FITUR HAPUS PESAN (LONG PRESS)
+    // Long press untuk hapus
     div.onmousedown = () => pressTimer = setTimeout(() => deleteMsg(m.id), 800);
     div.onmouseup = () => clearTimeout(pressTimer);
     div.ontouchstart = () => pressTimer = setTimeout(() => deleteMsg(m.id), 800);
@@ -171,28 +204,47 @@ async function deleteMsg(id) {
     }
 }
 
+// Like message
+window.likeMessage = async function(id) {
+    await sb.from('messages_webchat')
+        .update({ likes: sb.sql`likes + 1` })
+        .eq('id', id);
+}
+
 // Send message
-window.sendMsg = async function(imgUrl = null) {
+window.sendMsg = async function(fileData = null, fileType = null) {
     const inp = document.getElementById('msg-input');
     const content = inp.value.trim();
     
-    if(!content && !imgUrl) return;
+    if(!content && !fileData) return;
     
     inp.value = "";
     
-    await sb.from('messages_webchat').insert([{ 
+    const msgData = {
         sender_unique_id: myData.unique_id, 
         receiver_id: activeChat.unique_id, 
-        content, 
-        image_url: imgUrl 
-    }]);
+        content
+    };
+    
+    if (fileData) {
+        msgData.image_url = fileData;
+        if (fileType) msgData.file_type = fileType;
+    }
+    
+    await sb.from('messages_webchat').insert([msgData]);
 }
 
-// Upload image
-window.uploadImage = function(input) {
+// Upload file (image, video, audio, etc)
+window.uploadFile = function(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
     const reader = new FileReader();
-    reader.onload = (e) => sendMsg(e.target.result);
-    reader.readAsDataURL(input.files[0]);
+    reader.onload = (e) => {
+        const fileType = file.type;
+        sendMsg(e.target.result, fileType);
+    };
+    reader.readAsDataURL(file);
 }
 
 // Preview profile picture
@@ -239,9 +291,19 @@ function setupRealtime() {
             event: '*', 
             schema: 'public', 
             table: 'messages_webchat' 
-        }, () => { 
-            loadMessages(); 
-            markAsRead(); 
+        }, (payload) => { 
+            loadMessages();
+            
+            // Update unread count
+            if (payload.new && payload.new.receiver_id === myData.unique_id && !payload.new.is_read) {
+                const senderId = payload.new.sender_unique_id;
+                unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+                if (activeChat?.unique_id !== senderId) {
+                    loadContacts();
+                }
+            }
+            
+            markAsRead();
         }).subscribe();
     
     // Setup presence for online status
@@ -257,7 +319,6 @@ function setupRealtime() {
         
         loadContacts();
         
-        // Update current chat status if active
         if (activeChat && onlineUsers[activeChat.unique_id]) {
             document.getElementById('target-status').innerText = 'Online';
             document.getElementById('target-status').style.color = 'var(--green)';
@@ -301,6 +362,7 @@ window.openTargetProfile = function() {
     document.getElementById('v-avatar').src = activeChat.avatar_url || `https://ui-avatars.com/api/?name=${activeChat.username}`;
     document.getElementById('v-name').innerText = activeChat.username;
     document.getElementById('v-bio').innerText = activeChat.bio || "Tidak ada bio.";
+    document.getElementById('v-id').innerText = "ID: " + activeChat.unique_id;
     document.getElementById('view-profile-modal').classList.remove('hidden');
 };
 
@@ -314,6 +376,34 @@ document.getElementById('msg-input').onkeypress = (e) => {
     if(e.key === 'Enter') sendMsg(); 
 };
 
+// Search contact by name or ID
+window.searchContact = function() {
+    const query = document.getElementById('search-input').value.toLowerCase();
+    const contacts = document.querySelectorAll('.contact-item');
+    
+    contacts.forEach(contact => {
+        const name = contact.querySelector('div[style*="font-weight:900"]').textContent.toLowerCase();
+        const id = contact.querySelector('small').textContent.toLowerCase();
+        const shouldShow = name.includes(query) || id.includes(query);
+        contact.style.display = shouldShow ? 'flex' : 'none';
+    });
+};
+
+// Create status
+window.createStatus = async function() {
+    const statusText = document.getElementById('status-input').value;
+    if (!statusText) return;
+    
+    await sb.from('statuses').insert([{
+        user_id: myData.unique_id,
+        text: statusText,
+        likes: 0
+    }]);
+    
+    alert("Status berhasil dibuat!");
+    closeModal('status-modal');
+};
+
 // Add contact manually
 window.addContactManual = async function() {
     const sid = document.getElementById('search-id').value;
@@ -324,7 +414,6 @@ window.addContactManual = async function() {
     
     if (data) {
         alert("Berhasil Menemukan: " + data.username);
-        // Optionally add to contact list immediately
         loadContacts();
     } else {
         alert("ID tidak ditemukan");
