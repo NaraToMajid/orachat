@@ -58,6 +58,7 @@ function startApp() {
     updateMyDisplay(); 
     loadContacts(); 
     setupRealtime();
+    loadStatuses();
 }
 
 // Update my profile display
@@ -74,6 +75,29 @@ async function loadContacts() {
     const container = document.getElementById('contact-list');
     container.innerHTML = "";
     
+    // Add status section
+    const statusSection = document.createElement('div');
+    statusSection.className = "status-section";
+    statusSection.innerHTML = `
+        <div style="padding:15px; border-bottom:2px solid #eee; font-weight:900; display:flex; justify-content:space-between; align-items:center;">
+            <span>STATUS TERBARU</span>
+            <button onclick="openModal('status-modal')" style="font-size:10px; padding:5px 10px;">+ BUAT</button>
+        </div>
+        <div id="status-list" style="padding:10px;"></div>
+    `;
+    container.appendChild(statusSection);
+    
+    // Add contacts header
+    const contactsHeader = document.createElement('div');
+    contactsHeader.className = "contacts-header";
+    contactsHeader.innerHTML = `
+        <div style="padding:15px; border-bottom:2px solid #eee; font-weight:900;">
+            KONTAK (${profiles?.length || 0})
+        </div>
+    `;
+    container.appendChild(contactsHeader);
+    
+    // Add contacts
     profiles?.forEach(p => {
         const isOnline = onlineUsers[p.unique_id];
         const unread = unreadCounts[p.unique_id] || 0;
@@ -88,11 +112,55 @@ async function loadContacts() {
                     ${isOnline ? 'Online' : 'Offline'}
                 </small>
                 ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
-            </div>`;
+            </div>
+        `;
         div.onclick = () => openChat(p);
         container.appendChild(div);
     });
 }
+
+// Load statuses
+async function loadStatuses() {
+    const { data: statuses } = await sb.from('statuses')
+        .select('*, profiles_webchat(username, avatar_url)')
+        .order('created_at', { ascending: false })
+        .limit(10);
+    
+    const container = document.getElementById('status-list');
+    if (!container) return;
+    
+    container.innerHTML = "";
+    
+    statuses?.forEach(s => {
+        const div = document.createElement('div');
+        div.className = "status-item";
+        div.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                <img src="${s.profiles_webchat.avatar_url || 'https://ui-avatars.com/api/?name='+s.profiles_webchat.username}" 
+                     style="width:30px; height:30px; border-radius:50%; border:2px solid #000;">
+                <span style="font-weight:700;">${s.profiles_webchat.username}</span>
+            </div>
+            <div style="background:#f0f0f0; padding:10px; border-radius:10px; border:2px solid #000; margin-bottom:5px;">
+                ${s.text}
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                <span>${new Date(s.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <button onclick="likeStatus(${s.id})" style="background:none; border:none; cursor:pointer; padding:5px;">
+                    ${s.likes > 0 ? `❤️ ${s.likes}` : '🤍'}
+                </button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// Like status
+window.likeStatus = async function(id) {
+    await sb.from('statuses')
+        .update({ likes: sb.sql`likes + 1` })
+        .eq('id', id);
+    loadStatuses();
+};
 
 // Open chat with a contact
 window.openChat = function(profile) {
@@ -160,10 +228,31 @@ function renderMsg(m) {
     let contentHtml = '';
     if (m.image_url) {
         const isVideo = m.image_url.includes('.mp4') || m.image_url.includes('.webm') || m.file_type?.includes('video');
+        const isAudio = m.file_type?.includes('audio');
+        const isPDF = m.file_type?.includes('pdf');
+        const isDocument = m.file_type?.includes('document') || m.file_type?.includes('msword') || m.file_type?.includes('text');
+        
         if (isVideo) {
-            contentHtml = `<video src="${m.image_url}" controls class="msg-media"></video>`;
-        } else if (m.file_type?.includes('audio')) {
-            contentHtml = `<audio src="${m.image_url}" controls class="msg-media"></audio>`;
+            contentHtml = `
+                <div class="file-container">
+                    <video src="${m.image_url}" controls class="msg-media"></video>
+                    <small>🎥 Video</small>
+                </div>`;
+        } else if (isAudio) {
+            contentHtml = `
+                <div class="file-container">
+                    <audio src="${m.image_url}" controls class="msg-media"></audio>
+                    <small>🎵 Audio</small>
+                </div>`;
+        } else if (isPDF || isDocument) {
+            const fileName = m.file_type || "File";
+            contentHtml = `
+                <div class="file-container" style="background:#f0f0f0; padding:10px; border-radius:8px; border:2px solid #000;">
+                    <div style="font-weight:900; margin-bottom:5px;">📄 ${fileName.split('/').pop() || 'File'}</div>
+                    <a href="${m.image_url}" download target="_blank" style="color:var(--blue); text-decoration:none; font-weight:700;">
+                        📥 Download File
+                    </a>
+                </div>`;
         } else {
             contentHtml = `<img src="${m.image_url}" class="msg-img">`;
         }
@@ -173,26 +262,30 @@ function renderMsg(m) {
         // Check if content is a URL
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         let processedContent = m.content.replace(urlRegex, url => {
-            return `<a href="${url}" target="_blank" class="message-link">${url}</a>`;
+            const cleanUrl = url.replace(/[.,;!?]$/, '');
+            return `<a href="${cleanUrl}" target="_blank" class="message-link">${cleanUrl}</a>`;
         });
-        contentHtml += `<span>${processedContent}</span>`;
+        contentHtml += `<div class="message-text">${processedContent}</div>`;
     }
     
     div.innerHTML = `
         ${contentHtml}
         <div class="msg-info">
-            ${time} 
-            ${isMe ? (m.is_read ? '✓✓' : '✓') : ''}
+            <span>${time}</span>
+            ${isMe ? (m.is_read ? '<span style="color:var(--blue);">✓✓</span>' : '<span>✓</span>') : ''}
             ${m.likes > 0 ? `<span class="like-count">❤️ ${m.likes}</span>` : ''}
         </div>
-        ${!isMe ? '<button class="like-btn" onclick="likeMessage(\'' + m.id + '\')">❤️</button>' : ''}
+        ${!isMe ? '<button class="like-btn" onclick="likeMessage(\'' + m.id + '\')" title="Suka pesan ini">❤️</button>' : ''}
     `;
 
-    // Long press untuk hapus
-    div.onmousedown = () => pressTimer = setTimeout(() => deleteMsg(m.id), 800);
-    div.onmouseup = () => clearTimeout(pressTimer);
-    div.ontouchstart = () => pressTimer = setTimeout(() => deleteMsg(m.id), 800);
-    div.ontouchend = () => clearTimeout(pressTimer);
+    // Long press untuk hapus (hanya pesan sendiri)
+    if (isMe) {
+        div.onmousedown = () => pressTimer = setTimeout(() => deleteMsg(m.id), 1000);
+        div.onmouseup = () => clearTimeout(pressTimer);
+        div.onmouseleave = () => clearTimeout(pressTimer);
+        div.ontouchstart = () => pressTimer = setTimeout(() => deleteMsg(m.id), 1000);
+        div.ontouchend = () => clearTimeout(pressTimer);
+    }
 
     container.appendChild(div);
 }
@@ -209,6 +302,8 @@ window.likeMessage = async function(id) {
     await sb.from('messages_webchat')
         .update({ likes: sb.sql`likes + 1` })
         .eq('id', id);
+    
+    loadMessages();
 }
 
 // Send message
@@ -223,7 +318,9 @@ window.sendMsg = async function(fileData = null, fileType = null) {
     const msgData = {
         sender_unique_id: myData.unique_id, 
         receiver_id: activeChat.unique_id, 
-        content
+        content,
+        is_read: false,
+        likes: 0
     };
     
     if (fileData) {
@@ -231,7 +328,12 @@ window.sendMsg = async function(fileData = null, fileType = null) {
         if (fileType) msgData.file_type = fileType;
     }
     
-    await sb.from('messages_webchat').insert([msgData]);
+    const { error } = await sb.from('messages_webchat').insert([msgData]);
+    
+    if (error) {
+        console.error("Gagal mengirim pesan:", error);
+        alert("Gagal mengirim pesan!");
+    }
 }
 
 // Upload file (image, video, audio, etc)
@@ -239,10 +341,22 @@ window.uploadFile = function(input) {
     const file = input.files[0];
     if (!file) return;
     
+    // Reset input
+    input.value = '';
+    
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > 10) {
+        alert("File terlalu besar! Maksimal 10MB.");
+        return;
+    }
+    
     const reader = new FileReader();
     reader.onload = (e) => {
         const fileType = file.type;
         sendMsg(e.target.result, fileType);
+    };
+    reader.onerror = () => {
+        alert("Gagal membaca file!");
     };
     reader.readAsDataURL(file);
 }
@@ -264,13 +378,20 @@ window.saveProfile = async function() {
     
     if(tempAvatarBase64) upd.avatar_url = tempAvatarBase64;
     
-    await sb.from('profiles_webchat').update(upd).eq('unique_id', myData.unique_id);
+    const { error } = await sb.from('profiles_webchat').update(upd).eq('unique_id', myData.unique_id);
+    
+    if (error) {
+        alert("Gagal menyimpan profil!");
+        return;
+    }
+    
     myData.bio = bio; 
     
     if(tempAvatarBase64) myData.avatar_url = tempAvatarBase64;
     
     updateMyDisplay(); 
     closeModal('profile-modal');
+    alert("Profil berhasil diperbarui!");
 }
 
 // Mark messages as read
@@ -280,7 +401,8 @@ async function markAsRead() {
     await sb.from('messages_webchat')
         .update({ is_read: true })
         .eq('receiver_id', myData.unique_id)
-        .eq('sender_unique_id', activeChat.unique_id);
+        .eq('sender_unique_id', activeChat.unique_id)
+        .eq('is_read', false);
 }
 
 // Setup realtime listeners
@@ -288,23 +410,44 @@ function setupRealtime() {
     // Listen for new messages
     sb.channel('chat-main')
         .on('postgres_changes', { 
-            event: '*', 
+            event: 'INSERT', 
             schema: 'public', 
             table: 'messages_webchat' 
         }, (payload) => { 
-            loadMessages();
-            
-            // Update unread count
-            if (payload.new && payload.new.receiver_id === myData.unique_id && !payload.new.is_read) {
+            // Jika pesan untuk saya dan bukan dari chat aktif
+            if (payload.new.receiver_id === myData.unique_id && 
+                payload.new.sender_unique_id !== activeChat?.unique_id) {
                 const senderId = payload.new.sender_unique_id;
                 unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
-                if (activeChat?.unique_id !== senderId) {
-                    loadContacts();
-                }
+                loadContacts();
             }
             
-            markAsRead();
-        }).subscribe();
+            // Jika pesan dalam chat aktif
+            if ((payload.new.receiver_id === myData.unique_id && payload.new.sender_unique_id === activeChat?.unique_id) ||
+                (payload.new.sender_unique_id === myData.unique_id && payload.new.receiver_id === activeChat?.unique_id)) {
+                loadMessages();
+                markAsRead();
+            }
+        })
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages_webchat'
+        }, () => {
+            loadMessages();
+        })
+        .subscribe();
+    
+    // Listen for new statuses
+    sb.channel('status-updates')
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'statuses'
+        }, () => {
+            loadStatuses();
+        })
+        .subscribe();
     
     // Setup presence for online status
     const presence = sb.channel('online-status');
@@ -314,7 +457,9 @@ function setupRealtime() {
         onlineUsers = {};
         
         for (const id in state) { 
-            onlineUsers[state[id][0].uid] = true; 
+            if (state[id][0]?.uid) {
+                onlineUsers[state[id][0].uid] = true; 
+            }
         }
         
         loadContacts();
@@ -327,32 +472,54 @@ function setupRealtime() {
         if(activeChat && p.payload.uid === activeChat.unique_id) {
             document.getElementById('target-status').innerText = p.payload.isTyping ? "sedang mengetik..." : "";
         }
-    }).subscribe(async (s) => { 
-        if (s === 'SUBSCRIBED') await presence.track({ uid: myData.unique_id }); 
+    }).subscribe(async (status) => { 
+        if (status === 'SUBSCRIBED') {
+            await presence.track({ 
+                uid: myData.unique_id,
+                username: myData.username,
+                online_at: new Date().toISOString()
+            }); 
+        }
     });
 
     // Typing indicator
-    document.getElementById('msg-input').oninput = () => {
-        presence.send({ 
-            type: 'broadcast', 
-            event: 'typing', 
-            payload: { uid: myData.unique_id, isTyping: true } 
-        });
-        
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => presence.send({ 
-            type: 'broadcast', 
-            event: 'typing', 
-            payload: { uid: myData.unique_id, isTyping: false } 
-        }), 2000);
-    };
+    const msgInput = document.getElementById('msg-input');
+    if (msgInput) {
+        msgInput.oninput = () => {
+            presence.send({ 
+                type: 'broadcast', 
+                event: 'typing', 
+                payload: { uid: myData.unique_id, isTyping: true } 
+            });
+            
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => presence.send({ 
+                type: 'broadcast', 
+                event: 'typing', 
+                payload: { uid: myData.unique_id, isTyping: false } 
+            }), 2000);
+        };
+    }
 }
+
+// Open modal
+window.openModal = function(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+};
+
+// Close modal
+window.closeModal = function(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+    if (modalId === 'profile-modal') {
+        tempAvatarBase64 = null;
+    }
+};
 
 // Open my profile
 window.openMyProfile = function() {
     document.getElementById('edit-bio').value = myData.bio || "";
     document.getElementById('edit-preview').src = myData.avatar_url || `https://ui-avatars.com/api/?name=${myData.username}`;
-    document.getElementById('profile-modal').classList.remove('hidden');
+    openModal('profile-modal');
 };
 
 // Open target profile
@@ -363,59 +530,123 @@ window.openTargetProfile = function() {
     document.getElementById('v-name').innerText = activeChat.username;
     document.getElementById('v-bio').innerText = activeChat.bio || "Tidak ada bio.";
     document.getElementById('v-id').innerText = "ID: " + activeChat.unique_id;
-    document.getElementById('view-profile-modal').classList.remove('hidden');
-};
-
-// Close modal
-window.closeModal = function(id) {
-    document.getElementById(id).classList.add('hidden');
-};
-
-// Send message on Enter key
-document.getElementById('msg-input').onkeypress = (e) => { 
-    if(e.key === 'Enter') sendMsg(); 
-};
-
-// Search contact by name or ID
-window.searchContact = function() {
-    const query = document.getElementById('search-input').value.toLowerCase();
-    const contacts = document.querySelectorAll('.contact-item');
-    
-    contacts.forEach(contact => {
-        const name = contact.querySelector('div[style*="font-weight:900"]').textContent.toLowerCase();
-        const id = contact.querySelector('small').textContent.toLowerCase();
-        const shouldShow = name.includes(query) || id.includes(query);
-        contact.style.display = shouldShow ? 'flex' : 'none';
-    });
+    openModal('view-profile-modal');
 };
 
 // Create status
 window.createStatus = async function() {
-    const statusText = document.getElementById('status-input').value;
-    if (!statusText) return;
+    const statusText = document.getElementById('status-input').value.trim();
+    if (!statusText) {
+        alert("Status tidak boleh kosong!");
+        return;
+    }
     
-    await sb.from('statuses').insert([{
+    if (statusText.length > 500) {
+        alert("Status terlalu panjang! Maksimal 500 karakter.");
+        return;
+    }
+    
+    const { error } = await sb.from('statuses').insert([{
         user_id: myData.unique_id,
         text: statusText,
         likes: 0
     }]);
     
-    alert("Status berhasil dibuat!");
+    if (error) {
+        alert("Gagal membuat status!");
+        return;
+    }
+    
+    document.getElementById('status-input').value = "";
     closeModal('status-modal');
+    alert("Status berhasil diposting!");
+};
+
+// Send message on Enter key
+document.addEventListener('DOMContentLoaded', function() {
+    const msgInput = document.getElementById('msg-input');
+    if (msgInput) {
+        msgInput.addEventListener('keypress', (e) => { 
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMsg(); 
+            }
+        });
+    }
+});
+
+// Search contact by name or ID
+window.searchContact = function() {
+    const query = document.getElementById('search-input').value.toLowerCase().trim();
+    const contactItems = document.querySelectorAll('.contact-item');
+    
+    if (!query) {
+        contactItems.forEach(item => item.style.display = 'flex');
+        return;
+    }
+    
+    contactItems.forEach(item => {
+        const nameElement = item.querySelector('div[style*="font-weight:900"]');
+        const statusElement = item.querySelector('small');
+        
+        if (!nameElement || !statusElement) return;
+        
+        const name = nameElement.textContent.toLowerCase();
+        const status = statusElement.textContent.toLowerCase();
+        const shouldShow = name.includes(query) || status.includes(query);
+        item.style.display = shouldShow ? 'flex' : 'none';
+    });
 };
 
 // Add contact manually
 window.addContactManual = async function() {
-    const sid = document.getElementById('search-id').value;
-    const { data } = await sb.from('profiles_webchat')
+    const sid = document.getElementById('search-id').value.trim();
+    if (!sid) {
+        alert("Masukkan ID teman!");
+        return;
+    }
+    
+    if (sid === myData.unique_id) {
+        alert("Tidak bisa menambahkan diri sendiri!");
+        return;
+    }
+    
+    const { data, error } = await sb.from('profiles_webchat')
         .select('*')
         .eq('unique_id', sid)
         .single();
     
-    if (data) {
-        alert("Berhasil Menemukan: " + data.username);
-        loadContacts();
-    } else {
-        alert("ID tidak ditemukan");
+    if (error || !data) {
+        alert("ID tidak ditemukan!");
+        return;
     }
+    
+    alert("Berhasil menemukan: " + data.username);
+    document.getElementById('search-id').value = "";
+    loadContacts();
 };
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if already logged in (simple check)
+    const savedUser = localStorage.getItem('orachat_user');
+    if (savedUser) {
+        try {
+            myData = JSON.parse(savedUser);
+            startApp();
+        } catch (e) {
+            localStorage.removeItem('orachat_user');
+        }
+    }
+    
+    // Save user data on login
+    if (window.handleAuth) {
+        const originalHandleAuth = window.handleAuth;
+        window.handleAuth = async function() {
+            await originalHandleAuth();
+            if (myData) {
+                localStorage.setItem('orachat_user', JSON.stringify(myData));
+            }
+        };
+    }
+});
