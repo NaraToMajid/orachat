@@ -11,9 +11,11 @@
     <div id="auth-screen">
         <div class="auth-card">
             <h2 id="auth-title" style="margin:0 0 15px 0; text-align:center;">MASUK</h2>
-            <input type="text" id="username-field" placeholder="Username">
-            <input type="password" id="password-field" placeholder="Password">
-            <div id="reg-extra" class="hidden"><input type="password" id="confirm-field" placeholder="Konfirmasi Password"></div>
+            <input type="text" id="username-field" placeholder="Username" autocomplete="username">
+            <input type="password" id="password-field" placeholder="Password" autocomplete="current-password">
+            <div id="reg-extra" class="hidden">
+                <input type="password" id="confirm-field" placeholder="Konfirmasi Password" autocomplete="new-password">
+            </div>
             <button onclick="handleAuth()" style="width:100%; margin-top:10px;">MULAI CHAT</button>
             <p id="toggle-text" onclick="toggleAuth()" style="cursor:pointer; font-size:12px; font-weight:700; text-align:center; margin-top:15px;">BELUM PUNYA AKUN? DAFTAR</p>
         </div>
@@ -23,7 +25,7 @@
         <div id="sidebar">
             <div class="sb-header">
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                    <img id="my-avatar" class="avatar" onclick="openMyProfile()">
+                    <img id="my-avatar" class="avatar" onclick="openMyProfile()" style="cursor:pointer;">
                     <div>
                         <div id="my-name" style="font-weight:900;">-</div>
                         <small id="my-id">ID: -</small>
@@ -31,17 +33,17 @@
                 </div>
                 <div style="display:flex; gap:5px;">
                     <button onclick="openModal('status-modal')" style="flex:1; font-size:10px;">BUAT STATUS</button>
-                    <button onclick="location.reload()" style="font-size:10px;">LOGOUT</button>
+                    <button onclick="location.reload()" style="font-size:10px; background:var(--red);">LOGOUT</button>
                 </div>
             </div>
             
             <div style="padding:15px; border-bottom:4px solid #000;">
-                <input type="text" id="search-input" placeholder="Cari nama/ID..." oninput="searchContact()">
+                <input type="text" id="search-input" placeholder="Cari nama/ID..." oninput="searchContact()" autocomplete="off">
             </div>
             
-            <div style="padding:15px; border-bottom:4px solid #000; display:flex; gap:5px;">
-                <input type="text" id="search-id" placeholder="Tambahkan ID teman" style="flex:1;">
-                <button onclick="addContactManual()">+</button>
+            <div style="padding:15px; border-bottom:4px solid #000; display:flex; gap:5px; align-items:center;">
+                <input type="text" id="search-id" placeholder="Tambahkan dengan ID" style="flex:1;">
+                <button onclick="addContactManual()" style="padding:10px; font-size:12px;">+</button>
             </div>
             
             <div id="contact-list" style="flex:1; overflow-y:auto;"></div>
@@ -50,7 +52,7 @@
         <div id="chat-area">
             <div id="chat-header" style="display:flex; align-items:center;">
                 <button id="back-btn" onclick="closeChat()" class="back-arrow">←</button>
-                <img id="target-avatar" class="avatar" style="width:40px; height:40px; margin-right:10px;" onclick="openTargetProfile()">
+                <img id="target-avatar" class="avatar" style="width:40px; height:40px; margin-right:10px; cursor:pointer;" onclick="openTargetProfile()">
                 <div style="flex:1; cursor:pointer;" onclick="openTargetProfile()">
                     <div id="target-name" style="font-weight:900; line-height:1.2;">PILIH CHAT</div>
                     <div id="target-status" style="font-size:11px; color:var(--green); font-weight:700; height:15px;"></div>
@@ -60,14 +62,17 @@
             <div id="messages-container"></div>
             <div id="chat-footer" class="hidden" style="padding:15px; background:white; border-top:5px solid #000;">
                 <div style="display:flex; gap:10px; align-items:center;">
-                    <label style="cursor:pointer; font-size:20px; position:relative;">
-                        📎
-                        <input type="file" class="hidden" accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.txt" 
-                               onchange="uploadFile(this)" style="position:absolute; width:100%; height:100%; opacity:0;">
+                    <label style="cursor:pointer; font-size:20px; position:relative; display:flex; align-items:center;">
+                        <span style="font-size:24px;">📎</span>
+                        <input type="file" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" 
+                               onchange="uploadFile(this)" style="position:absolute; width:100%; height:100%; opacity:0; cursor:pointer;">
                     </label>
                     <input type="text" id="msg-input" placeholder="Tulis pesan..." autocomplete="off" style="flex:1;">
-                    <button onclick="sendMsg()" style="width:80px;">KIRIM</button>
+                    <button onclick="sendMsg()" style="width:80px; background:var(--green);">KIRIM</button>
                 </div>
+                <small style="display:block; text-align:center; margin-top:5px; color:#666; font-size:10px;">
+                    Tekan Enter untuk mengirim • Shift+Enter untuk baris baru
+                </small>
             </div>
         </div>
     </div>
@@ -77,22 +82,27 @@
         <div class="auth-card" style="text-align:center; max-width:400px;">
             <h3>EDIT PROFIL</h3>
             <img id="edit-preview" class="avatar" style="width:100px; height:100px; margin-bottom:10px;">
-            <label style="display:block; font-size:12px; color:blue; cursor:pointer; font-weight:700; margin-bottom:10px;">
-                GANTI FOTO <input type="file" class="hidden" accept="image/*" onchange="previewProfile(this)">
+            <label style="display:block; font-size:12px; color:var(--blue); cursor:pointer; font-weight:700; margin-bottom:10px; padding:10px; border:2px dashed #ccc; border-radius:10px;">
+                📸 GANTI FOTO PROFIL
+                <input type="file" class="hidden" accept="image/*" onchange="previewProfile(this)">
             </label>
-            <input type="text" id="edit-bio" placeholder="Bio Singkat">
-            <button onclick="saveProfile()" style="width:100%; margin-top:10px;">SIMPAN</button>
-            <button onclick="closeModal('profile-modal')" style="width:100%; margin-top:5px; background:gray;">BATAL</button>
+            <textarea id="edit-bio" placeholder="Tulis bio singkat tentang diri Anda..." rows="3" maxlength="200"></textarea>
+            <small style="display:block; text-align:right; color:#666; margin-bottom:10px;" id="bio-counter">0/200</small>
+            <button onclick="saveProfile()" style="width:100%; margin-top:10px; background:var(--green);">SIMPAN</button>
+            <button onclick="closeModal('profile-modal')" style="width:100%; margin-top:5px; background:var(--gray); color:#000;">BATAL</button>
         </div>
     </div>
 
     <!-- View Profile Modal -->
     <div id="view-profile-modal" class="overlay hidden">
         <div class="auth-card" style="text-align:center; max-width:400px;">
-            <img id="v-avatar" style="width:120px; height:120px; border:5px solid #000; border-radius:50%; object-fit:cover; margin-bottom:15px;">
+            <img id="v-avatar" style="width:120px; height:120px; border:5px solid var(--black); border-radius:50%; object-fit:cover; margin-bottom:15px;">
             <h2 id="v-name" style="margin:0; text-transform:uppercase;">-</h2>
-            <div id="v-id" style="font-weight:700; color:#666; margin-bottom:15px;">ID: -</div>
-            <p id="v-bio" style="font-weight:700; color:#555;">-</p>
+            <div id="v-id" style="font-weight:700; color:#666; margin-bottom:15px; padding:5px 10px; background:#f0f0f0; border-radius:10px;">ID: -</div>
+            <div style="background:#f9f9f9; padding:15px; border-radius:10px; border:2px solid #eee; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0; color:#666;">BIO</h4>
+                <p id="v-bio" style="margin:0; color:#333; font-weight:700;">-</p>
+            </div>
             <button onclick="closeModal('view-profile-modal')" style="width:100%; margin-top:10px;">TUTUP</button>
         </div>
     </div>
@@ -101,13 +111,53 @@
     <div id="status-modal" class="overlay hidden">
         <div class="auth-card" style="text-align:center; max-width:400px;">
             <h3>BUAT STATUS</h3>
-            <textarea id="status-input" placeholder="Apa yang sedang Anda pikirkan?" rows="4"></textarea>
-            <button onclick="createStatus()" style="width:100%; margin-top:10px;">POSTING</button>
-            <button onclick="closeModal('status-modal')" style="width:100%; margin-top:5px; background:gray;">BATAL</button>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; justify-content:center;">
+                <img id="status-avatar" class="avatar" style="width:50px; height:50px;">
+                <div>
+                    <div id="status-name" style="font-weight:900;"></div>
+                    <small style="color:#666;">Hanya terlihat oleh teman</small>
+                </div>
+            </div>
+            <textarea id="status-input" placeholder="Apa yang sedang Anda pikirkan?" rows="4" maxlength="500"></textarea>
+            <small style="display:block; text-align:right; color:#666; margin-bottom:10px;" id="status-counter">0/500</small>
+            <button onclick="createStatus()" style="width:100%; margin-top:10px; background:var(--blue);">POSTING STATUS</button>
+            <button onclick="closeModal('status-modal')" style="width:100%; margin-top:5px; background:var(--gray); color:#000;">BATAL</button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
+    
+    <script>
+        // Update character counters
+        document.addEventListener('DOMContentLoaded', function() {
+            const bioInput = document.getElementById('edit-bio');
+            const statusInput = document.getElementById('status-input');
+            const bioCounter = document.getElementById('bio-counter');
+            const statusCounter = document.getElementById('status-counter');
+            
+            if (bioInput && bioCounter) {
+                bioInput.addEventListener('input', function() {
+                    bioCounter.textContent = this.value.length + '/200';
+                });
+            }
+            
+            if (statusInput && statusCounter) {
+                statusInput.addEventListener('input', function() {
+                    statusCounter.textContent = this.value.length + '/500';
+                });
+            }
+            
+            // Update status modal info
+            const openModal = window.openModal;
+            window.openModal = function(modalId) {
+                if (modalId === 'status-modal' && myData) {
+                    document.getElementById('status-avatar').src = myData.avatar_url || `https://ui-avatars.com/api/?name=${myData.username}`;
+                    document.getElementById('status-name').textContent = myData.username;
+                }
+                document.getElementById(modalId).classList.remove('hidden');
+            };
+        });
+    </script>
 </body>
 </html>
